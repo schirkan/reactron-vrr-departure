@@ -1,1 +1,35 @@
-.DepartureMonitor {}
+section.DepartureMonitor {
+    @keyframes ticker {
+        0% {
+            // margin-left:0;
+            // margin-right:0;
+            transform: translate3d(0, 0, 0);
+        }
+        100% {
+            // margin-left:-100%;
+            // margin-right:100%;
+            transform: translate3d(-100%, 0, 0);
+        }
+    }
+    .header {
+        // border-bottom: 1px solid white;
+    }
+    .departures {
+        display: grid;
+        grid-template-columns: min-content min-content min-content min-content auto min-content;
+        grid-column-gap: 8px;
+        white-space: nowrap;
+        .delay {
+            color: red;
+        }
+        &>div {
+            overflow: hidden;
+        }
+        .route {
+            animation: 10s linear infinite alternate ticker;
+        }
+        &>:nth-child(6n) {
+            text-align: right
+        }
+    }
+}

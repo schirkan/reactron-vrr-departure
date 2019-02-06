@@ -28,7 +28,7 @@ function __awaiter(thisArg, _arguments, P, generator) {
     });
 }
 
-const baseUrl = 'http://api.openweathermap.org/data/2.5/'; // TODO
+const baseUrl = 'https://haltestellenmonitor.vrr.de/backend/app.php/api/stations/';
 class PublicTransportService {
     constructor(context) {
         this.context = context;
@@ -45,66 +45,131 @@ class PublicTransportService {
         });
     }
     getDepartures(station) {
+        const url = baseUrl + 'table';
+        const result = this.getOrCreate(url + station.id, () => {
+            const requestOptions = {
+                headers: { cookie: 'vrr-ef-lb=1530374336.20480.0000' },
+                body: 'table[departure][stationName]=' + station.name +
+                    '&table[departure][platformVisibility]=1' +
+                    '&table[departure][transport]=2,3,4' +
+                    '&table[departure][rowCount]=6' +
+                    '&table[sortBy]=0' +
+                    '&table[departure][distance]=0' +
+                    '&table[departure][stationId]=' + station.id
+            };
+            return this.getResponseInternal('post', url, requestOptions, PublicTransportService.mapToDepartureList);
+        });
+        return result;
+    }
+    getStations(query) {
+        const url = baseUrl + 'search?query=' + encodeURI(query);
+        const result = this.getOrCreate(url, () => {
+            return this.getResponseInternal('get', url, {}, PublicTransportService.mapToStationList);
+        });
+        return result;
+    }
+    getResponseInternal(method, url, requestOptions, mapper) {
         return __awaiter(this, void 0, void 0, function* () {
-            const url = this.getApiUrl(station);
-            return this.getResponse(url, PublicTransportService.mapToDepartureResponse);
+            this.context.log.debug('fetch', url);
+            requestOptions = Object.assign({}, requestOptions, { json: true, rejectUnauthorized: false, resolveWithFullResponse: true });
+            try {
+                let response;
+                switch (method) {
+                    case "get":
+                        response = yield request.get(url, requestOptions);
+                        break;
+                    case "post":
+                        requestOptions.headers["Content-Type"] = "application/x-www-form-urlencoded";
+                        response = yield request.post(url, requestOptions);
+                        break;
+                }
+                if (!response) {
+                    throw new Error('response is undefined');
+                }
+                if (response.statusCode !== 200) {
+                    this.context.log.error(response.statusMessage, response.body);
+                    throw new Error(response.statusMessage);
+                }
+                this.context.log.debug(response.body);
+                return mapper(response.body);
+            }
+            catch (error) {
+                this.context.log.error(error);
+                throw error;
+            }
         });
     }
-    getApiUrl(station) {
-        let url = baseUrl + '?APPID=' + station; // TODO
-        return url;
-    }
-    getResponse(url, mapper) {
+    getOrCreate(key, creator) {
         return __awaiter(this, void 0, void 0, function* () {
             const now = Date.now();
             const validCacheTime = now - (this.options.cacheDuration * 60 * 1000);
             // check timestamp
-            if (this.cache[url] && this.cache[url].timestamp < validCacheTime) {
-                delete (this.cache[url]);
+            if (this.cache[key] && this.cache[key].timestamp < validCacheTime) {
+                delete (this.cache[key]);
             }
-            if (!this.cache[url]) {
-                this.cache[url] = {
+            if (!this.cache[key]) {
+                this.cache[key] = {
                     timestamp: now,
-                    result: this.getResponseInternal(url, mapper)
+                    result: creator()
                 };
             }
             else {
                 this.context.log.debug('cache hit');
             }
-            return this.cache[url].result;
+            return this.cache[key].result;
         });
     }
-    getResponseInternal(url, mapper) {
-        return __awaiter(this, void 0, void 0, function* () {
-            this.context.log.debug('fetch', url);
-            const response = yield request.get(url, { json: true, resolveWithFullResponse: true });
-            if (response.statusCode !== 200) {
-                this.context.log.error(response.statusMessage, response.body);
-                throw new Error(response.statusMessage);
-            }
-            return mapper(response.body);
-        });
+    static mapToDepartureList(response) {
+        const result = {
+            departures: response.departureData.map(item => ({
+                departureTimestamp: item.fullTime,
+                originalDepartureTimestamp: item.orgFullTime,
+                name: item.name,
+                lineNumber: item.lineNumber,
+                subname: item.subname,
+                direction: item.direction,
+                directionCode: item.directionCode,
+                route: item.route,
+                type: item.type,
+                platform: item.platform,
+                delay: +item.delay,
+            })),
+            stationInfo: response.stationInfo,
+            stationName: response.stationName,
+        };
+        return result;
     }
-    static mapToDepartureResponse(response) {
-        const result = response;
-        // TODO
+    static mapToStationList(response) {
+        const suggestions = response.suggestions;
+        const result = suggestions.map(item => ({
+            id: item.data,
+            name: item.value,
+        }));
         return result;
     }
 }
 
+(function (TransportTypeEnum) {
+    TransportTypeEnum[TransportTypeEnum["Train"] = 1] = "Train";
+    TransportTypeEnum[TransportTypeEnum["SBahn"] = 2] = "SBahn";
+    TransportTypeEnum[TransportTypeEnum["Metro"] = 3] = "Metro";
+    TransportTypeEnum[TransportTypeEnum["Tram"] = 4] = "Tram";
+    TransportTypeEnum[TransportTypeEnum["Bus"] = 5] = "Bus";
+})(exports.TransportTypeEnum || (exports.TransportTypeEnum = {}));
+
 // export reactron service definition
 const services = [{
-        description: 'Service forpPublic transport in germany',
+        description: 'Service for public transport in germany',
         displayName: 'Public transport information service',
         fields: [{
-                defaultValue: 15,
+                defaultValue: 5,
                 description: 'Cache duration in minutes',
                 displayName: 'Cache duration (min)',
                 name: 'cacheDuration',
                 valueType: 'number',
-                minValue: 5,
-                maxValue: 120,
-                stepSize: 5
+                minValue: 0,
+                maxValue: 60,
+                stepSize: 1
             }],
         name: 'PublicTransportService',
         service: PublicTransportService

@@ -1,0 +1,18 @@
+.StationInputForm {
+    margin: 8px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+    .station-search {
+        display: grid;
+        grid-template-columns: auto min-content;
+    }
+    .station-list {
+        max-height: 256px;
+        overflow: auto;
+        border-top: 1px solid #ddd;
+        .selected {
+            background-color: #eef;
+        }
+    }
+}
