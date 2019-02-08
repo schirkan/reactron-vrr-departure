@@ -1,3 +1,5 @@
+import { TransportTypeEnum } from "./TransportTypeEnum";
+
 export interface IDepartureList {
   departures: IDepartureData[],
   stationName: string,
@@ -5,14 +7,6 @@ export interface IDepartureList {
     automat: string,
     sitzen: string
   }
-}
-
-export enum TransportTypeEnum {
-  Train = 1,
-  SBahn = 2,
-  Metro = 3,
-  Tram = 4,
-  Bus = 5
 }
 
 export interface IDepartureData {

@@ -70,13 +70,13 @@ System.register(['@schirkan/reactron-interfaces', 'moment', 'react', '@fortaweso
               }
             }
 
-            var css = "@-webkit-keyframes ticker {\n  0% {\n    margin-left: 0; }\n  100% {\n    margin-left: -100%; } }\n\n@keyframes ticker {\n  0% {\n    margin-left: 0; }\n  100% {\n    margin-left: -100%; } }\n\nsection.DepartureMonitor .departures {\n  display: grid;\n  grid-template-columns: -webkit-min-content -webkit-min-content -webkit-min-content -webkit-min-content auto -webkit-min-content;\n  grid-template-columns: min-content min-content min-content min-content auto min-content;\n  grid-column-gap: 8px;\n  white-space: nowrap; }\n  section.DepartureMonitor .departures .delay {\n    color: red; }\n  section.DepartureMonitor .departures > div {\n    overflow: hidden; }\n  section.DepartureMonitor .departures .route {\n    display: inline-block;\n    -webkit-animation: 10s linear infinite alternate ticker;\n            animation: 10s linear infinite alternate ticker; }\n  section.DepartureMonitor .departures > :nth-child(6n) {\n    text-align: right; }\n";
+            var css = "@-webkit-keyframes ticker {\n  0%, 10% {\n    margin-left: 0%;\n    -webkit-transform: translate3d(0, 0, 0);\n            transform: translate3d(0, 0, 0); }\n  90%, 100% {\n    margin-left: 100%;\n    -webkit-transform: translate3d(-100%, 0, 0);\n            transform: translate3d(-100%, 0, 0); } }\n\n@keyframes ticker {\n  0%, 10% {\n    margin-left: 0%;\n    -webkit-transform: translate3d(0, 0, 0);\n            transform: translate3d(0, 0, 0); }\n  90%, 100% {\n    margin-left: 100%;\n    -webkit-transform: translate3d(-100%, 0, 0);\n            transform: translate3d(-100%, 0, 0); } }\n\nsection.DepartureMonitor .departures {\n  display: grid;\n  grid-column-gap: 8px;\n  white-space: nowrap; }\n  section.DepartureMonitor .departures > div {\n    overflow: hidden; }\n  section.DepartureMonitor .departures .delay {\n    color: red; }\n  section.DepartureMonitor .departures .route {\n    -webkit-animation: 10s linear infinite alternate ticker;\n            animation: 10s linear infinite alternate ticker;\n    display: inline-block; }\n  section.DepartureMonitor .departures .platform {\n    text-align: right; }\n";
             styleInject(css);
 
             class DepartureMonitor extends Component {
                 constructor(props) {
                     super(props);
-                    this.state = {};
+                    this.state = { loading: false };
                     this.loadData = this.loadData.bind(this);
                     this.renderDeparture = this.renderDeparture.bind(this);
                 }
@@ -96,12 +96,38 @@ System.register(['@schirkan/reactron-interfaces', 'moment', 'react', '@fortaweso
                     return __awaiter(this, void 0, void 0, function* () {
                         const service = yield this.context.getService('PublicTransportService');
                         if (service) {
+                            const transport = [];
+                            if (this.props.transport.longDistanceTrain) {
+                                transport.push(0);
+                            }
+                            if (this.props.transport.regionalTrain) {
+                                transport.push(1);
+                            }
+                            if (this.props.transport.sbahn) {
+                                transport.push(2);
+                            }
+                            if (this.props.transport.subway) {
+                                transport.push(3);
+                            }
+                            if (this.props.transport.tram) {
+                                transport.push(4);
+                            }
+                            if (this.props.transport.bus) {
+                                transport.push(5);
+                            }
+                            this.setState({ loading: true });
                             try {
-                                const departures = yield service.getDepartures(this.props.station);
-                                this.setState({ data: departures });
+                                const departures = yield service.getDepartures({
+                                    station: this.props.station,
+                                    distance: this.props.distance,
+                                    platformVisibility: this.props.platformVisibility,
+                                    rowCount: this.props.rowCount,
+                                    transport,
+                                });
+                                this.setState({ data: departures, loading: false });
                             }
                             catch (error) {
-                                this.setState({ error });
+                                this.setState({ error, loading: false });
                             }
                         }
                     });
@@ -111,34 +137,89 @@ System.register(['@schirkan/reactron-interfaces', 'moment', 'react', '@fortaweso
                     const date = moment(item.originalDepartureTimestamp * 1000).tz(timezone);
                     return (createElement(Fragment, { key: item.lineNumber + item.directionCode + item.departureTimestamp.toString() },
                         createElement("div", null, date.format('LT')),
-                        createElement("div", { className: "delay" }, item.delay > 0 ? '+' + item.delay : ''),
-                        createElement("div", null, item.lineNumber),
-                        createElement("div", null, item.direction),
-                        createElement("div", null,
-                            createElement("div", { className: "route" }, item.route)),
-                        createElement("div", null, item.platform)));
+                        this.props.columns.delay && (createElement("div", { className: "delay" }, item.delay > 0 ? '+' + item.delay : '')),
+                        this.props.columns.line && (createElement("div", null, item.lineNumber)),
+                        this.props.columns.direction && (createElement("div", null, item.direction)),
+                        this.props.columns.route && (createElement("div", null,
+                            createElement("div", { className: "route" }, item.route))),
+                        this.props.columns.platform && (createElement("div", { className: "platform" }, item.platform))));
+                }
+                getFilteredDepartures() {
+                    if (!this.state.data) {
+                        return [];
+                    }
+                    return this.state.data.departures.filter(x => {
+                        if (!this.props.filter)
+                            return true;
+                        let show = true;
+                        if (this.props.filter.direction) {
+                            show = x.direction.includes(this.props.filter.direction);
+                        }
+                        if (show && this.props.filter.line) {
+                            show = x.lineNumber === this.props.filter.line;
+                        }
+                        if (show && this.props.filter.platform) {
+                            show = x.platform === this.props.filter.platform;
+                        }
+                        return show;
+                    });
+                }
+                renderDepartures() {
+                    if (!this.state.data) {
+                        return null;
+                    }
+                    let gridTemplateColumns = 'min-content';
+                    if (this.props.columns.delay)
+                        gridTemplateColumns += ' min-content';
+                    if (this.props.columns.line)
+                        gridTemplateColumns += ' min-content';
+                    if (this.props.columns.direction)
+                        gridTemplateColumns += ' min-content';
+                    if (this.props.columns.route)
+                        gridTemplateColumns += ' auto';
+                    if (this.props.columns.platform)
+                        gridTemplateColumns += ' min-content';
+                    return (createElement("div", { className: "departures", style: { gridTemplateColumns } },
+                        createElement("div", null, "Time"),
+                        this.props.columns.delay && (createElement("div", null, "Delay")),
+                        this.props.columns.line && (createElement("div", null, "Line")),
+                        this.props.columns.direction && (createElement("div", null, "Direction")),
+                        this.props.columns.route && (createElement("div", null, "Route")),
+                        this.props.columns.platform && (createElement("div", null, "Platform")),
+                        this.getFilteredDepartures().map(this.renderDeparture)));
+                }
+                renderHeader() {
+                    if (!this.props.showHeader) {
+                        return null;
+                    }
+                    return (createElement("h2", null,
+                        "Departure from ",
+                        this.props.station.name,
+                        (this.state.loading) && this.context.renderLoading(undefined, '1x', { display: 'inline-block', marginLeft: '8px' })));
                 }
                 render() {
                     if (this.state.error) {
                         return 'Error: ' + this.state.error;
                     }
-                    if (!this.state.data) {
-                        return this.context.renderLoading('Loading...');
+                    if (!this.props.station || !this.props.station.name || !this.props.station.id) {
+                        return createElement("div", null, "No Station specified!");
                     }
                     return (createElement("section", { className: "DepartureMonitor" },
-                        createElement("h2", { className: "header", hidden: !this.props.showHeader },
-                            "Departure for ",
-                            this.props.station.name),
-                        createElement("div", { className: "departures" },
-                            createElement("div", null, "Time"),
-                            createElement("div", null, "Delay"),
-                            createElement("div", null, "Line"),
-                            createElement("div", null, "Direction"),
-                            createElement("div", null, "Route"),
-                            createElement("div", null, "Platform"),
-                            this.state.data.departures.map(this.renderDeparture))));
+                        this.renderHeader(),
+                        this.renderDepartures()));
                 }
             } exports('DepartureMonitor', DepartureMonitor);
+            DepartureMonitor.defaultProps = {
+                transport: {
+                    longDistanceTrain: true,
+                    regionalTrain: true,
+                    sbahn: true,
+                    subway: true,
+                    tram: true,
+                    bus: true,
+                },
+                columns: {}
+            };
 
             const StationInputControl = exports('StationInputControl', (props) => {
                 const stationName = props.value && props.value.name;
@@ -191,7 +272,7 @@ System.register(['@schirkan/reactron-interfaces', 'moment', 'react', '@fortaweso
                 }
                 renderStations() {
                     if (this.state.loading) {
-                        return createElement("div", { className: "station-list" }, this.props.context.renderLoading());
+                        return createElement("div", { className: "station-list" }, this.props.context.renderLoading(undefined, '1x'));
                     }
                     if (this.state.error) {
                         return 'Error: ' + this.state.error;
@@ -222,18 +303,116 @@ System.register(['@schirkan/reactron-interfaces', 'moment', 'react', '@fortaweso
                     description: 'Public Transport Departure Monitor',
                     displayName: 'Public Transport Departure Monitor',
                     fields: [{
-                            description: 'Station',
                             displayName: 'Station',
                             name: 'station',
                             valueType: 'object',
                             inputControl: StationInputControl,
                             inputForm: StationInputForm
                         }, {
-                            description: 'Show header',
+                            description: 'Distance to station in minutes',
+                            displayName: 'Walk time (in min)',
+                            name: 'distance',
+                            valueType: 'number',
+                            defaultValue: 0,
+                            minValue: 0,
+                            maxValue: 60
+                        }, {
                             displayName: 'Show header',
                             name: 'showHeader',
                             valueType: 'boolean',
                             defaultValue: true
+                        }, {
+                            displayName: 'Show columns',
+                            name: 'columns',
+                            valueType: 'object',
+                            fields: [{
+                                    displayName: 'Delay',
+                                    name: 'delay',
+                                    valueType: 'boolean',
+                                    defaultValue: true
+                                }, {
+                                    displayName: 'Line',
+                                    name: 'line',
+                                    valueType: 'boolean',
+                                    defaultValue: true
+                                }, {
+                                    displayName: 'Direction',
+                                    name: 'direction',
+                                    valueType: 'boolean',
+                                    defaultValue: true
+                                }, {
+                                    displayName: 'Route',
+                                    name: 'route',
+                                    valueType: 'boolean',
+                                    defaultValue: true
+                                }, {
+                                    displayName: 'Platform',
+                                    name: 'platform',
+                                    valueType: 'boolean',
+                                    defaultValue: true
+                                }]
+                        }, {
+                            displayName: 'Transport type',
+                            name: 'transport',
+                            valueType: 'object',
+                            fields: [{
+                                    displayName: 'IC/ICE',
+                                    name: 'longDistanceTrain',
+                                    valueType: 'boolean',
+                                    defaultValue: true
+                                }, {
+                                    displayName: 'RE',
+                                    name: 'regionalTrain',
+                                    valueType: 'boolean',
+                                    defaultValue: true
+                                }, {
+                                    displayName: 'S-Bahn',
+                                    name: 'sbahn',
+                                    valueType: 'boolean',
+                                    defaultValue: true
+                                }, {
+                                    displayName: 'Subway',
+                                    name: 'subway',
+                                    valueType: 'boolean',
+                                    defaultValue: true
+                                }, {
+                                    displayName: 'Tram',
+                                    name: 'tram',
+                                    valueType: 'boolean',
+                                    defaultValue: true
+                                }, {
+                                    displayName: 'Bus',
+                                    name: 'bus',
+                                    valueType: 'boolean',
+                                    defaultValue: true
+                                }]
+                        }, {
+                            displayName: 'Rows',
+                            name: 'rowCount',
+                            valueType: 'number',
+                            defaultValue: 6
+                        }, {
+                            displayName: 'Filter result',
+                            name: 'filter',
+                            valueType: 'object',
+                            fields: [{
+                                    displayName: 'Line',
+                                    name: 'line',
+                                    valueType: 'string',
+                                }, {
+                                    displayName: 'Direction',
+                                    name: 'direction',
+                                    valueType: 'string',
+                                }, {
+                                    displayName: 'Platform',
+                                    name: 'platform',
+                                    valueType: 'string',
+                                }]
+                            // }, {
+                            //   displayName: 'platformVisibility',
+                            //   name: 'platformVisibility',
+                            //   valueType: 'number',
+                            //   defaultValue: 1
                         }]
                 }]);
 

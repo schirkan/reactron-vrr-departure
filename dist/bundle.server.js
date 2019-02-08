@@ -44,18 +44,31 @@ class PublicTransportService {
             return this.options;
         });
     }
-    getDepartures(station) {
+    getDepartures(options) {
+        if (!options.distance || options.distance < 0) {
+            options.distance = 0;
+        }
+        if (!options.platformVisibility || options.platformVisibility < 0) {
+            options.platformVisibility = 1;
+        }
+        if (!options.rowCount || options.rowCount < 1) {
+            options.rowCount = 6;
+        }
+        if (!options.transport) {
+            options.transport = [0, 1, 2, 3, 4, 5];
+        }
         const url = baseUrl + 'table';
-        const result = this.getOrCreate(url + station.id, () => {
+        const cacheKey = url + JSON.stringify(options);
+        const result = this.getOrCreate(cacheKey, () => {
             const requestOptions = {
                 headers: { cookie: 'vrr-ef-lb=1530374336.20480.0000' },
-                body: 'table[departure][stationName]=' + station.name +
-                    '&table[departure][platformVisibility]=1' +
-                    '&table[departure][transport]=2,3,4' +
-                    '&table[departure][rowCount]=6' +
+                body: 'table[departure][stationName]=' + encodeURIComponent(options.station.name) +
+                    '&table[departure][transport]=' + options.transport.join(',') +
+                    '&table[departure][rowCount]=' + options.rowCount +
                     '&table[sortBy]=0' +
-                    '&table[departure][distance]=0' +
-                    '&table[departure][stationId]=' + station.id
+                    '&table[departure][platformVisibility]=' + options.platformVisibility +
+                    '&table[departure][distance]=' + options.distance +
+                    '&table[departure][stationId]=' + options.station.id
             };
             return this.getResponseInternal('post', url, requestOptions, PublicTransportService.mapToDepartureList);
         });
@@ -148,14 +161,6 @@ class PublicTransportService {
         return result;
     }
 }
-
-(function (TransportTypeEnum) {
-    TransportTypeEnum[TransportTypeEnum["Train"] = 1] = "Train";
-    TransportTypeEnum[TransportTypeEnum["SBahn"] = 2] = "SBahn";
-    TransportTypeEnum[TransportTypeEnum["Metro"] = 3] = "Metro";
-    TransportTypeEnum[TransportTypeEnum["Tram"] = 4] = "Tram";
-    TransportTypeEnum[TransportTypeEnum["Bus"] = 5] = "Bus";
-})(exports.TransportTypeEnum || (exports.TransportTypeEnum = {}));
 
 // export reactron service definition
 const services = [{

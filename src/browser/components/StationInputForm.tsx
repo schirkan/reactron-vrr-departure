@@ -64,7 +64,7 @@ export class StationInputForm extends React.Component<IInputComponentProps, ISta
 
   private renderStations() {
     if (this.state.loading) {
-      return <div className="station-list">{this.props.context.renderLoading()}</div>;
+      return <div className="station-list">{this.props.context.renderLoading(undefined, '1x')}</div>;
     }
     if (this.state.error) {
       return 'Error: ' + this.state.error;

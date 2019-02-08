@@ -4,6 +4,7 @@ import { IPublicTransportServiceOptions } from 'src/common/interfaces/IPublicTra
 import { IPublicTransportService } from 'src/common/interfaces/IPublicTransportService';
 import { IDepartureList, IDepartureResponse, IDepartureData } from 'src/common/interfaces/IDepartureList';
 import { IStation } from 'src/common/interfaces/IStation';
+import { IDepartureRequest } from 'src/common/interfaces/IDepartureRequest';
 
 const baseUrl = 'https://haltestellenmonitor.vrr.de/backend/app.php/api/stations/';
 
@@ -26,18 +27,33 @@ export class PublicTransportService implements IPublicTransportService {
     return this.options;
   }
 
-  public getDepartures(station: IStation): Promise<IDepartureList> {
+  public getDepartures(options: IDepartureRequest): Promise<IDepartureList> {
+    if (!options.distance || options.distance < 0) {
+      options.distance = 0;
+    }
+    if (!options.platformVisibility || options.platformVisibility < 0) {
+      options.platformVisibility = 1;
+    }
+    if (!options.rowCount || options.rowCount < 1) {
+      options.rowCount = 6;
+    }
+    if (!options.transport) {
+      options.transport = [0, 1, 2, 3, 4, 5];
+    }
     const url = baseUrl + 'table';
-    const result = this.getOrCreate(url + station.id, () => {
+    const cacheKey = url + JSON.stringify(options);
+
+    const result = this.getOrCreate(cacheKey, () => {
       const requestOptions: request.RequestPromiseOptions = {
         headers: { cookie: 'vrr-ef-lb=1530374336.20480.0000' },
-        body: 'table[departure][stationName]=' + station.name +
-          '&table[departure][platformVisibility]=1' +
-          '&table[departure][transport]=2,3,4' +
-          '&table[departure][rowCount]=6' +
+        body:
+          'table[departure][stationName]=' + encodeURIComponent(options.station.name) +
+          '&table[departure][transport]=' + options.transport.join(',') +
+          '&table[departure][rowCount]=' + options.rowCount +
           '&table[sortBy]=0' +
-          '&table[departure][distance]=0' +
-          '&table[departure][stationId]=' + station.id
+          '&table[departure][platformVisibility]=' + options.platformVisibility +
+          '&table[departure][distance]=' + options.distance +
+          '&table[departure][stationId]=' + options.station.id
       };
       return this.getResponseInternal('post', url, requestOptions, PublicTransportService.mapToDepartureList);
     });
