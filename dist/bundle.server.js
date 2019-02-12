@@ -28,7 +28,7 @@ function __awaiter(thisArg, _arguments, P, generator) {
     });
 }
 
-const baseUrl = 'https://haltestellenmonitor.vrr.de/backend/app.php/api/stations/';
+const baseUrl = 'https://haltestellenmonitor.vrr.de/backend/api/stations/';
 class PublicTransportService {
     constructor(context) {
         this.context = context;

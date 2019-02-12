@@ -6,7 +6,7 @@ import { IDepartureList, IDepartureResponse, IDepartureData } from 'src/common/i
 import { IStation } from 'src/common/interfaces/IStation';
 import { IDepartureRequest } from 'src/common/interfaces/IDepartureRequest';
 
-const baseUrl = 'https://haltestellenmonitor.vrr.de/backend/app.php/api/stations/';
+const baseUrl = 'https://haltestellenmonitor.vrr.de/backend/api/stations/';
 
 interface ICacheItem {
   timestamp: number;
