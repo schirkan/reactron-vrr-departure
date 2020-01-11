@@ -48,8 +48,6 @@ export class DepartureMonitor extends React.Component<IDepartureMonitorProps, ID
   constructor(props: IDepartureMonitorProps) {
     super(props);
     this.state = { loading: false };
-    this.loadData = this.loadData.bind(this);
-    this.renderDeparture = this.renderDeparture.bind(this);
   }
 
   public static defaultProps: Partial<IDepartureMonitorProps> = {
@@ -79,7 +77,7 @@ export class DepartureMonitor extends React.Component<IDepartureMonitorProps, ID
     }
   }
 
-  private async loadData() {
+  private loadData = async () => {
     const service = await this.context.getService<IPublicTransportService>('PublicTransportService');
     if (service) {
       const transport: number[] = [];
@@ -103,7 +101,7 @@ export class DepartureMonitor extends React.Component<IDepartureMonitorProps, ID
         transport.push(5);
       }
 
-      this.setState({ loading: true });
+      this.setState({ loading: true, error: undefined });
 
       try {
         const departures = await service.getDepartures({
@@ -111,17 +109,16 @@ export class DepartureMonitor extends React.Component<IDepartureMonitorProps, ID
           distance: this.props.distance,
           platformVisibility: this.props.platformVisibility,
           rowCount: this.props.rowCount,
-          transport,
+          transport
         } as IDepartureRequest);
-
-        this.setState({ data: departures, loading: false });
+        this.setState({ data: departures, loading: false, error: undefined });
       } catch (error) {
-        this.setState({ error, loading: false });
+        this.setState({ loading: false, error });
       }
     }
   }
 
-  private renderDeparture(item: IDepartureData) {
+  private renderDeparture = (item: IDepartureData) => {
     const timezone = this.context.settings.timezone;
     const date = moment(item.originalDepartureTimestamp * 1000).tz(timezone);
     return (
@@ -157,6 +154,10 @@ export class DepartureMonitor extends React.Component<IDepartureMonitorProps, ID
   }
 
   private renderDepartures() {
+    if (this.state.error) {
+      return 'Error: ' + this.state.error;
+    }
+
     if (!this.state.data) {
       return null;
     }
@@ -194,10 +195,6 @@ export class DepartureMonitor extends React.Component<IDepartureMonitorProps, ID
   }
 
   public render() {
-    if (this.state.error) {
-      return 'Error: ' + this.state.error;
-    }
-
     if (!this.props.station || !this.props.station.name || !this.props.station.id) {
       return <div>No Station specified!</div>;
     }

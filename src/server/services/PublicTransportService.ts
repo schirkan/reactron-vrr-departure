@@ -16,6 +16,7 @@ interface ICacheItem {
 export class PublicTransportService implements IPublicTransportService {
   private options: IPublicTransportServiceOptions;
   private cache: { [url: string]: ICacheItem } = {};
+  private cacheClearInterval: any;
 
   constructor(private context: IReactronServiceContext) { }
 
@@ -25,6 +26,24 @@ export class PublicTransportService implements IPublicTransportService {
 
   public async getOptions(): Promise<Readonly<IPublicTransportServiceOptions>> {
     return this.options;
+  }
+
+  public async start?(context: IReactronServiceContext): Promise<void> {
+    // check and clear cache once per hour
+    this.cacheClearInterval = setInterval(() => {
+      const now = Date.now();
+      const validCacheTime = now - (this.options.cacheDuration * 60 * 1000);
+      Object.keys(this.cache).forEach(key => {
+        // check timestamp
+        if (this.cache[key] && this.cache[key].timestamp < validCacheTime) {
+          delete (this.cache[key]);
+        }
+      });
+    }, 60 * 60 * 1000);
+  }
+
+  public async  stop?(): Promise<void> {
+    clearInterval(this.cacheClearInterval);
   }
 
   public getDepartures(options: IDepartureRequest): Promise<IDepartureList> {
@@ -91,7 +110,7 @@ export class PublicTransportService implements IPublicTransportService {
         this.context.log.error(response.statusMessage, response.body);
         throw new Error(response.statusMessage);
       }
-      this.context.log.debug(response.body);
+      // this.context.log.debug(response.body);
       return mapper(response.body);
     } catch (error) {
       this.context.log.error(error);
@@ -109,10 +128,7 @@ export class PublicTransportService implements IPublicTransportService {
     }
 
     if (!this.cache[key]) {
-      this.cache[key] = {
-        timestamp: now,
-        result: creator()
-      };
+      this.cache[key] = { timestamp: now, result: creator() };
     } else {
       this.context.log.debug('cache hit');
     }
@@ -144,7 +160,7 @@ export class PublicTransportService implements IPublicTransportService {
   private static mapToStationList(response: any): IStation[] {
     const suggestions: { data: string, value: string }[] = response.suggestions;
     const result: IStation[] = suggestions.map(item => ({
-      id: item.data,
+      id: +item.data,
       name: item.value,
     } as IStation));
     return result;

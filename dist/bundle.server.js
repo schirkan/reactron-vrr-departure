@@ -44,6 +44,26 @@ class PublicTransportService {
             return this.options;
         });
     }
+    start(context) {
+        return __awaiter(this, void 0, void 0, function* () {
+            // check and clear cache once per hour
+            this.cacheClearInterval = setInterval(() => {
+                const now = Date.now();
+                const validCacheTime = now - (this.options.cacheDuration * 60 * 1000);
+                Object.keys(this.cache).forEach(key => {
+                    // check timestamp
+                    if (this.cache[key] && this.cache[key].timestamp < validCacheTime) {
+                        delete (this.cache[key]);
+                    }
+                });
+            }, 60 * 60 * 1000);
+        });
+    }
+    stop() {
+        return __awaiter(this, void 0, void 0, function* () {
+            clearInterval(this.cacheClearInterval);
+        });
+    }
     getDepartures(options) {
         if (!options.distance || options.distance < 0) {
             options.distance = 0;
@@ -84,7 +104,7 @@ class PublicTransportService {
     getResponseInternal(method, url, requestOptions, mapper) {
         return __awaiter(this, void 0, void 0, function* () {
             this.context.log.debug('fetch', url);
-            requestOptions = Object.assign({}, requestOptions, { json: true, rejectUnauthorized: false, resolveWithFullResponse: true });
+            requestOptions = Object.assign(Object.assign({}, requestOptions), { json: true, rejectUnauthorized: false, resolveWithFullResponse: true });
             try {
                 let response;
                 switch (method) {
@@ -103,7 +123,7 @@ class PublicTransportService {
                     this.context.log.error(response.statusMessage, response.body);
                     throw new Error(response.statusMessage);
                 }
-                this.context.log.debug(response.body);
+                // this.context.log.debug(response.body);
                 return mapper(response.body);
             }
             catch (error) {
@@ -121,10 +141,7 @@ class PublicTransportService {
                 delete (this.cache[key]);
             }
             if (!this.cache[key]) {
-                this.cache[key] = {
-                    timestamp: now,
-                    result: creator()
-                };
+                this.cache[key] = { timestamp: now, result: creator() };
             }
             else {
                 this.context.log.debug('cache hit');
@@ -155,7 +172,7 @@ class PublicTransportService {
     static mapToStationList(response) {
         const suggestions = response.suggestions;
         const result = suggestions.map(item => ({
-            id: item.data,
+            id: +item.data,
             name: item.value,
         }));
         return result;

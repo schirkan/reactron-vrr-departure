@@ -1,4 +1,4 @@
-System.register(['@schirkan/reactron-interfaces', 'moment', 'react', '@fortawesome/free-solid-svg-icons', '@fortawesome/react-fontawesome'], function (exports, module) {
+System.register(['@schirkan/reactron-interfaces', 'moment', 'react', '@fortawesome/free-solid-svg-icons', '@fortawesome/react-fontawesome'], function (exports) {
     'use strict';
     var topicNames, moment, Component, createElement, Fragment, faSearch, FontAwesomeIcon;
     return {
@@ -76,24 +76,7 @@ System.register(['@schirkan/reactron-interfaces', 'moment', 'react', '@fortaweso
             class DepartureMonitor extends Component {
                 constructor(props) {
                     super(props);
-                    this.state = { loading: false };
-                    this.loadData = this.loadData.bind(this);
-                    this.renderDeparture = this.renderDeparture.bind(this);
-                }
-                componentDidMount() {
-                    this.context.topics.subscribe(topicNames.refresh, this.loadData);
-                    this.loadData();
-                }
-                componentWillUnmount() {
-                    this.context.topics.unsubscribe(topicNames.refresh, this.loadData);
-                }
-                componentDidUpdate(prevProps) {
-                    if (JSON.stringify(this.props) !== JSON.stringify(prevProps)) {
-                        this.loadData();
-                    }
-                }
-                loadData() {
-                    return __awaiter(this, void 0, void 0, function* () {
+                    this.loadData = () => __awaiter(this, void 0, void 0, function* () {
                         const service = yield this.context.getService('PublicTransportService');
                         if (service) {
                             const transport = [];
@@ -115,34 +98,47 @@ System.register(['@schirkan/reactron-interfaces', 'moment', 'react', '@fortaweso
                             if (this.props.transport.bus) {
                                 transport.push(5);
                             }
-                            this.setState({ loading: true });
+                            this.setState({ loading: true, error: undefined });
                             try {
                                 const departures = yield service.getDepartures({
                                     station: this.props.station,
                                     distance: this.props.distance,
                                     platformVisibility: this.props.platformVisibility,
                                     rowCount: this.props.rowCount,
-                                    transport,
+                                    transport
                                 });
-                                this.setState({ data: departures, loading: false });
+                                this.setState({ data: departures, loading: false, error: undefined });
                             }
                             catch (error) {
-                                this.setState({ error, loading: false });
+                                this.setState({ loading: false, error });
                             }
                         }
                     });
+                    this.renderDeparture = (item) => {
+                        const timezone = this.context.settings.timezone;
+                        const date = moment(item.originalDepartureTimestamp * 1000).tz(timezone);
+                        return (createElement(Fragment, { key: item.lineNumber + item.directionCode + item.departureTimestamp.toString() },
+                            createElement("div", null, date.format('LT')),
+                            this.props.columns.delay && (createElement("div", { className: "delay" }, item.delay > 0 ? '+' + item.delay : '')),
+                            this.props.columns.line && (createElement("div", null, item.lineNumber)),
+                            this.props.columns.direction && (createElement("div", null, item.direction)),
+                            this.props.columns.route && (createElement("div", null,
+                                createElement("div", { className: "route" }, item.route))),
+                            this.props.columns.platform && (createElement("div", { className: "platform" }, item.platform))));
+                    };
+                    this.state = { loading: false };
                 }
-                renderDeparture(item) {
-                    const timezone = this.context.settings.timezone;
-                    const date = moment(item.originalDepartureTimestamp * 1000).tz(timezone);
-                    return (createElement(Fragment, { key: item.lineNumber + item.directionCode + item.departureTimestamp.toString() },
-                        createElement("div", null, date.format('LT')),
-                        this.props.columns.delay && (createElement("div", { className: "delay" }, item.delay > 0 ? '+' + item.delay : '')),
-                        this.props.columns.line && (createElement("div", null, item.lineNumber)),
-                        this.props.columns.direction && (createElement("div", null, item.direction)),
-                        this.props.columns.route && (createElement("div", null,
-                            createElement("div", { className: "route" }, item.route))),
-                        this.props.columns.platform && (createElement("div", { className: "platform" }, item.platform))));
+                componentDidMount() {
+                    this.context.topics.subscribe(topicNames.refresh, this.loadData);
+                    this.loadData();
+                }
+                componentWillUnmount() {
+                    this.context.topics.unsubscribe(topicNames.refresh, this.loadData);
+                }
+                componentDidUpdate(prevProps) {
+                    if (JSON.stringify(this.props) !== JSON.stringify(prevProps)) {
+                        this.loadData();
+                    }
                 }
                 getFilteredDepartures() {
                     if (!this.state.data) {
@@ -165,6 +161,9 @@ System.register(['@schirkan/reactron-interfaces', 'moment', 'react', '@fortaweso
                     });
                 }
                 renderDepartures() {
+                    if (this.state.error) {
+                        return 'Error: ' + this.state.error;
+                    }
                     if (!this.state.data) {
                         return null;
                     }
@@ -198,9 +197,6 @@ System.register(['@schirkan/reactron-interfaces', 'moment', 'react', '@fortaweso
                         (this.state.loading) && this.context.renderLoading(undefined, '1x', { display: 'inline-block', marginLeft: '8px' })));
                 }
                 render() {
-                    if (this.state.error) {
-                        return 'Error: ' + this.state.error;
-                    }
                     if (!this.props.station || !this.props.station.name || !this.props.station.id) {
                         return createElement("div", null, "No Station specified!");
                     }
